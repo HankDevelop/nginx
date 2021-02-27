@@ -67,6 +67,9 @@ typedef struct {
 
 // 字体全局配置信息
 typedef struct{
+    ngx_regex_t                  *args_re;         // 请求参数解析正则匹配
+    ngx_regex_t                  *image_process_re;    // x-image-process 参数正则匹配
+    ngx_regex_t                  *value_re;         // 参数值正则匹配
     ngx_hash_t                   font_hash;   // 在nginx安装目录下添加fonts目录，所有可用字体均放置到该目录下
 } ngx_http_image_filter_main_conf_t;
 
@@ -1595,6 +1598,58 @@ ngx_http_image_filter_main_create_conf(ngx_conf_t * cf)
     ngx_hash_init(&hash_init, key_array->elts, key_array->nelts);
 
     conf->font_hash = font_hash;
+
+#if (NGX_PCRE)
+    ngx_regex_compile_t   rc;
+    u_char                errstr[NGX_MAX_CONF_ERRSTR];
+    ngx_str_t  args_pattern = ngx_string("[^&]+");
+
+    ngx_memzero(&rc, sizeof(ngx_regex_compile_t));
+
+    rc.pattern = args_pattern;
+    rc.pool = cf->pool;
+    rc.err.len = NGX_MAX_CONF_ERRSTR;
+    rc.err.data = errstr;
+    /* rc.options are passed as is to pcre_compile() */
+
+    if (ngx_regex_compile(&rc) != NGX_OK) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%V", &rc.err);
+        return NGX_CONF_ERROR;
+    }
+    conf->args_re = rc.regex;
+
+    ngx_str_t  image_process_pattern = ngx_string("x-image-process=[^&]*");
+
+    ngx_memzero(&rc, sizeof(ngx_regex_compile_t));
+
+    rc.pattern = image_process_pattern;
+    rc.pool = cf->pool;
+    rc.err.len = NGX_MAX_CONF_ERRSTR;
+    rc.err.data = errstr;
+    /* rc.options are passed as is to pcre_compile() */
+
+    if (ngx_regex_compile(&rc) != NGX_OK) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%V", &rc.err);
+        return NGX_CONF_ERROR;
+    }
+    conf->image_process_re = rc.regex;
+
+    ngx_str_t  value_pattern = ngx_string("(?<==)[^&]*");
+
+    ngx_memzero(&rc, sizeof(ngx_regex_compile_t));
+
+    rc.pattern = value_pattern;
+    rc.pool = cf->pool;
+    rc.err.len = NGX_MAX_CONF_ERRSTR;
+    rc.err.data = errstr;
+    /* rc.options are passed as is to pcre_compile() */
+
+    if (ngx_regex_compile(&rc) != NGX_OK) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%V", &rc.err);
+        return NGX_CONF_ERROR;
+    }
+    conf->value_re = rc.regex;
+#endif
     return conf;
 }
 
