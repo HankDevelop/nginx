@@ -927,7 +927,7 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
 {
     int                            sx, sy, dx, dy, ox, oy, ax, ay, size,
                                    colors, palette, transparent, sharpen,
-                                   red, green, blue, t;
+                                   red, green, blue, t, sl;
     u_char                        *out;
     ngx_buf_t                     *b;
     ngx_uint_t                     resize;
@@ -937,7 +937,6 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
     ngx_http_image_filter_main_conf_t  *main_conf;
     image_watermark_args watermark_arg = {ngx_null_string, ngx_null_string, 0, ngx_null_string, ngx_null_string, ngx_null_string, 0, 0, 0, 0, 0, 0};
     ngx_int_t n;
-    size_t sl;
 
     src = ngx_http_image_source(r, ctx);
 
@@ -967,7 +966,6 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
         char *token, *temp_arg, *pSave = NULL;;
         const char split_char[2] = ",/";
         temp_arg = ngx_pcalloc(r->pool, sl + 1);
-        ngx_memzero(temp_arg, sl + 1);
 
         ngx_memcpy(temp_arg, (char *)image_process_arg.data + 16, sl);
         token = strtok_r(temp_arg, split_char, &pSave);
@@ -978,62 +976,69 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
                 conf->filter = NGX_HTTP_IMAGE_WATERMARK;
             } else if (ngx_strcmp(token, "image") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.image.len = sl;
-                watermark_arg.image.data = ngx_pcalloc(r->pool, sl + 1);
-                ngx_memcpy(watermark_arg.image.data, token, sl);
+                watermark_arg.image.len = ngx_min(ngx_strlen(token), 64);
+                watermark_arg.image.data = (u_char *)token;
             } else if (ngx_strcmp(token, "text") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.text.len = sl;
-                watermark_arg.text.data = ngx_pcalloc(r->pool, sl + 1);
-                ngx_memcpy(watermark_arg.text.data, token, sl);
+                watermark_arg.text.len = ngx_min(ngx_strlen(token), 64);
+                watermark_arg.text.data = (u_char *)token;
             } else if (ngx_strcmp(token, "size") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.size = ngx_atoi((u_char *)token, sl);
+                watermark_arg.size = ngx_atoi((u_char *)token, ngx_strlen(token));
             } else if (ngx_strcmp(token, "type") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.type.len = sl;
-                watermark_arg.type.data = ngx_pcalloc(r->pool, sl + 1);
-                ngx_memcpy(watermark_arg.type.data, token, sl);
+                watermark_arg.type.len = ngx_min(ngx_strlen(token), 32);
+                watermark_arg.type.data = (u_char *)token;
             } else if (ngx_strcmp(token, "color") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.color.len = sl;
-                watermark_arg.color.data = ngx_pcalloc(r->pool, sl + 1);
-                ngx_memcpy(watermark_arg.color.data, token, sl);
+                watermark_arg.color.len = ngx_strlen(token);
+                if(ngx_strlen(token) != 6){
+                    ngx_str_set(&watermark_arg.color, "000000");
+                } else {
+                    watermark_arg.color.data = (u_char *)token;
+                }
             } else if (ngx_strcmp(token, "g") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.g.len = sl;
-                watermark_arg.g.data = ngx_pcalloc(r->pool, sl + 1);
-                ngx_memcpy(watermark_arg.g.data, token, sl);
+                watermark_arg.g.len = ngx_strlen(token);
+                watermark_arg.g.data = (u_char *)token;
             } else if (ngx_strcmp(token, "t") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.t = ngx_atoi((u_char *)token, sl);
+                sl = ngx_atoi((u_char *)token, ngx_strlen(token));
+                if (sl < 0 || sl > 100) {
+                    sl = 100;
+                }
+                watermark_arg.t = sl;
             } else if (ngx_strcmp(token, "x") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.x = ngx_atoi((u_char *)token, sl);
+                sl = ngx_atoi((u_char *)token, ngx_strlen(token));
+                if (sl < 0 || sl > 4096) {
+                    sl = 10;
+                }
+                watermark_arg.x = sl;
             } else if (ngx_strcmp(token, "y") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.y = ngx_atoi((u_char *)token, sl);
+                sl = ngx_atoi((u_char *)token, ngx_strlen(token));
+                if (sl < 0 || sl > 4096) {
+                    sl = 10;
+                }
+                watermark_arg.y = sl;
             } else if (ngx_strcmp(token, "fill") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.fill = ngx_atoi((u_char *)token, sl);
+                watermark_arg.fill = ngx_atoi((u_char *)token, ngx_strlen(token));
             } else if (ngx_strcmp(token, "rotate") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.rotate = 360 - ngx_atoi((u_char *)token, sl);
+                sl = ngx_atoi((u_char *)token, ngx_strlen(token));
+                if (sl < 0 || sl > 360) {
+                    sl = 360;
+                }
+                watermark_arg.rotate = 360 - sl;
             } else if (ngx_strcmp(token, "interval") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                sl = ngx_strlen(token);
-                watermark_arg.interval = ngx_atoi((u_char *)token, sl);
+                sl = ngx_atoi((u_char *)token, ngx_strlen(token));
+                if (sl < 0 || sl > 1000) {
+                    sl = 100;
+                }
+                watermark_arg.interval = sl;
             }
 
             if (token != NULL) {
@@ -1281,27 +1286,28 @@ transparent:
 
                     if(watermark != NULL) {
                         if (ngx_strcmp(watermark_arg.g.data, "br") == 0) {
-                            wdx = (int)dst->sx - watermark->sx - 10;
-                            wdy = (int)dst->sy - watermark->sy - 10;
+                            wdx = (int)dst->sx - watermark->sx - watermark_arg.x;
+                            wdy = (int)dst->sy - watermark->sy - watermark_arg.y;
                         } else if (ngx_strcmp(watermark_arg.g.data, "tl") == 0) {
-                            wdx = wdy = 10;
+                            wdx = watermark_arg.x;
+                            wdy = watermark_arg.y;
                         } else if (ngx_strcmp(watermark_arg.g.data, "tr") == 0) {
-                            wdx = (int)dst->sx - watermark->sx - 10;
-                            wdy = 10;
+                            wdx = (int)dst->sx - watermark->sx - watermark_arg.x;
+                            wdy = watermark_arg.y;
                         } else if (ngx_strcmp(watermark_arg.g.data, "bl") == 0) {
-                            wdx = 10;
-                            wdy = (int)dst->sy - watermark->sy - 10;
+                            wdx = watermark_arg.x;
+                            wdy = (int)dst->sy - watermark->sy - watermark_arg.y;
                         }else if (ngx_strcmp(watermark_arg.g.data, "top") == 0) {
-                            wdy = 10;
                             wdx = (int)dst->sx/2 - (int)watermark->sx/2;
+                            wdy = watermark_arg.y;
                         }else if (ngx_strcmp(watermark_arg.g.data, "bottom") == 0) {
                             wdx = (int)dst->sx/2 - (int)watermark->sx/2;
-                            wdy = (int)dst->sy - watermark->sy - 10;
+                            wdy = (int)dst->sy - watermark->sy - watermark_arg.y;
                         }else if (ngx_strcmp(watermark_arg.g.data, "left") == 0) {
-                            wdx = 10;
+                            wdx = watermark_arg.x;
                             wdy = (int)dst->sy/2 - (int)watermark->sy/2;
                         }else if (ngx_strcmp(watermark_arg.g.data, "right") == 0) {
-                            wdx = (int)dst->sx - watermark->sx - 10;
+                            wdx = (int)dst->sx - watermark->sx - watermark_arg.x;
                             wdy = (int)dst->sy/2 - (int)watermark->sy/2;
                         }else if (ngx_strcmp(watermark_arg.g.data, "center") == 0) {
                             wdx = (int)dst->sx/2 - (int)watermark->sx/2;
@@ -1315,6 +1321,9 @@ transparent:
                                 wdx = ((int)dst->sx/2 - (int)watermark->sx/2) + (int)((double)rand() / ((double)RAND_MAX + 1) * 15);
                                 wdy = ((int)dst->sy/2 - (int)watermark->sy/2) - (int)((double)rand() / ((double)RAND_MAX + 1) * 15);
                             }
+                        } else { // 默认br
+                            wdx = (int)dst->sx - watermark->sx - watermark_arg.x;
+                            wdy = (int)dst->sy - watermark->sy - watermark_arg.y;
                         }
                         watermark_mix = gdImageCreateTrueColor(watermark->sx, watermark->sy);
                         // WorkAround on transparent source, fill background to white
@@ -1331,7 +1340,7 @@ transparent:
             	        }
                         gdImageCopy(watermark_mix, dst, 0, 0, wdx, wdy, watermark->sx, watermark->sy);
                         gdImageCopy(watermark_mix, watermark, 0, 0, 0, 0, watermark->sx, watermark->sy);
-                        gdImageCopyMerge(dst, watermark_mix, wdx, wdy, 0, 0, watermark->sx, watermark->sy, 75);
+                        gdImageCopyMerge(dst, watermark_mix, wdx, wdy, 0, 0, watermark->sx, watermark->sy, watermark_arg.t);
                         gdImageDestroy(watermark_mix);
 
                     } else {
@@ -1354,7 +1363,7 @@ transparent:
                 if (font_real_path != NULL) {
                     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "nginx font_real_path '%V' ", font_real_path);
                 } else {
-                    font_real_path = ngx_pcalloc(r->pool, sizeof(ngx_str_t));
+                    font_real_path = ngx_pnalloc(r->pool, sizeof(ngx_str_t));
                     ngx_str_set(font_real_path, "DejaVuSerif.ttf");
                 }
                 water_text.len = ngx_base64_decoded_length(watermark_arg.text.len);
@@ -1363,7 +1372,7 @@ transparent:
 
                 sprintf(font_path, "%s/%s", NGX_FONT_PATH, font_real_path->data);
                 FILE *water_font_file = fopen((const char *)font_path, "r");
-                //ngx_pfree(r->pool, font_real_path);
+                ngx_pfree(r->pool, font_real_path);
                 if (water_font_file) {//如果水印字体存在
                 	int R,G,B, tw, th;
                 	char R_str[3],G_str[3],B_str[3];
@@ -1424,10 +1433,14 @@ transparent:
                                 wdx = ((int)dst->sx/2 - tw/2) + (int)((double)rand() / ((double)RAND_MAX + 1) * 15);
                                 wdy = ((int)dst->sy/2 - th/2) - (int)((double)rand() / ((double)RAND_MAX + 1) * 15);
                             }
+                        } else {
+                            wdx = (int)dst->sx - tw - watermark_arg.x;
+                            wdy = (int)dst->sy - watermark_arg.y;
                         }
                         gdImageStringFT(dst, &brect[0], water_color, font_path, watermark_arg.size, angle, wdx, wdy, (char *)water_text.data);
                     }
                 }
+                ngx_pfree(r->pool, &water_text);
             }
 
         }else{
@@ -1699,13 +1712,14 @@ ngx_http_image_filter_main_create_conf(ngx_conf_t * cf)
                 suffix_len = ngx_strlen(strrchr(entry->d_name, ch));
 				font_name_len = real_len - suffix_len;
 				font_file_name.len = font_name_len;
-				font_file_name.data = ngx_pnalloc(cf->pool, real_len-suffix_len);
+				font_file_name.data = ngx_pcalloc(cf->pool, real_len-suffix_len);
 				ngx_memcpy(font_file_name.data, entry->d_name, real_len-suffix_len);
 
 				ngx_str_t encode_name;
 				encode_name.len = ngx_base64_encoded_length(font_name_len);
 				encode_name.data = ngx_pcalloc(cf->pool, encode_name.len+1);
                 ngx_encode_base64url(&encode_name, &font_file_name);
+                ngx_pfree(cf->pool, &font_file_name);
 
                 font_type = ngx_array_push(key_array);
                 if (font_type == NULL) {
@@ -1714,7 +1728,7 @@ ngx_http_image_filter_main_create_conf(ngx_conf_t * cf)
 
                 ngx_str_t *font_real_path = ngx_pcalloc(cf->pool, sizeof(ngx_str_t));
                 font_real_path->len = real_len;
-                font_real_path->data = ngx_pnalloc(cf->pool, real_len+1);
+                font_real_path->data = ngx_pcalloc(cf->pool, real_len+1);
                 ngx_memcpy(font_real_path->data, entry->d_name, real_len);
 
                 font_type->key = encode_name;
