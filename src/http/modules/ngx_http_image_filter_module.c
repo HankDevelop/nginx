@@ -965,7 +965,7 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "image_process argument: %V", &image_process_arg);
         sl = image_process_arg.len - 16;
         char *token, *temp_arg, *pSave = NULL;;
-        const char split_char[2] = ",_";
+        const char split_char[2] = ",/";
         temp_arg = ngx_pcalloc(r->pool, sl + 1);
         ngx_memzero(temp_arg, sl + 1);
 
