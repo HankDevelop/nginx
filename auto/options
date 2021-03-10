@@ -16,6 +16,8 @@ NGX_LOCK_PATH=
 NGX_USER=
 NGX_GROUP=
 NGX_BUILD=
+NGX_IMAGE_PATH=
+NGX_FONT_PATH=
 
 CC=${CC:-cc}
 CPP=
@@ -193,6 +195,8 @@ do
         --lock-path=*)                   NGX_LOCK_PATH="$value"     ;;
         --user=*)                        NGX_USER="$value"          ;;
         --group=*)                       NGX_GROUP="$value"         ;;
+        --images=*)                      NGX_IMAGE_PATH="$value"    ;;
+        --fonts=*)                       NGX_FONT_PATH="$value"     ;;
 
         --crossbuild=*)                  NGX_PLATFORM="$value"      ;;
 
@@ -425,6 +429,8 @@ cat << END
                                      worker processes
   --group=GROUP                      set non-privileged group for
                                      worker processes
+  --images=PATH                      水印图片路径
+  --fonts=PATH                       水印文字字体路径
 
   --build=NAME                       set build name
   --builddir=DIR                     set build directory
@@ -601,6 +607,8 @@ NGX_CONF_PATH=${NGX_CONF_PATH:-conf/nginx.conf}
 NGX_CONF_PREFIX=`dirname $NGX_CONF_PATH`
 NGX_PID_PATH=${NGX_PID_PATH:-logs/nginx.pid}
 NGX_LOCK_PATH=${NGX_LOCK_PATH:-logs/nginx.lock}
+NGX_IMAGE_PATH=${NGX_IMAGE_PATH:-images}
+NGX_FONT_PATH=${NGX_FONT_PATH:-fonts}
 
 if [ ".$NGX_ERROR_LOG_PATH" = ".stderr" ]; then
     NGX_ERROR_LOG_PATH=

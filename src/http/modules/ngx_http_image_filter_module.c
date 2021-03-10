@@ -10,6 +10,7 @@
 #include <ngx_http.h>
 
 #include <gd.h>
+#include <math.h>
 #include <dirent.h>
 
 #define NGX_HTTP_IMAGE_OFF       0
@@ -37,12 +38,6 @@
 #define NGX_HTTP_IMAGE_BUFFERED  0x08
 #define NGX_DEFAULT_FONT_HEIGHT  20.0           //字体高度
 
-#ifndef NGX_IMAGE_PATH
-#define NGX_IMAGE_PATH "/usr/local/nginx/images"
-#endif
-#ifndef NGX_FONT_PATH
-#define NGX_FONT_PATH "/usr/local/nginx/fonts"
-#endif
 #ifndef NGX_MAX_FONT_SIZE
 #define NGX_MAX_FONT_SIZE 16
 #endif
@@ -596,12 +591,12 @@ ngx_http_image_process(ngx_http_request_t *r)
     int captures [(1 + main_conf->image_process_captures)* 3];
     matches = ngx_regex_exec(main_conf->image_process_re, &r->args, captures, (1 + main_conf->image_process_captures) * 3);
     if (matches >= 0) {
-        ngx_str_t   image_process_arg;
+        ngx_str_t   image_process_arg = ngx_null_string;
 
         /* all captures */
-        for (int i = 0; i < matches * 2; i += 2) {
-            image_process_arg.data = r->args.data + captures[i];
-            image_process_arg.len = captures[i + 1] - captures[i];
+        for (sl = 0; sl < matches * 2; sl += 2) {
+            image_process_arg.data = r->args.data + captures[sl];
+            image_process_arg.len = captures[sl + 1] - captures[sl];
         }
         sl = image_process_arg.len - 16;
         char *token, *temp_arg, *pSave = NULL;;
@@ -910,7 +905,7 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
 {
     int                            sx, sy, dx, dy, ox, oy, ax, ay, size,
                                    colors, palette, transparent, sharpen,
-                                   red, green, blue, t, sl, matches;
+                                   red, green, blue, t, sl, matches, tx, ty;
     u_char                        *out;
     ngx_buf_t                     *b;
     ngx_uint_t                     resize;
@@ -937,12 +932,12 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
     matches = ngx_regex_exec(main_conf->image_process_re, &r->args, captures, (1 + main_conf->image_process_captures) * 3);
     if (matches >= 0) {
         /* string matches expression */
-        ngx_str_t   image_process_arg;
+        ngx_str_t   image_process_arg = ngx_null_string;
 
         /* all captures */
-        for (int i = 0; i < matches * 2; i += 2) {
-            image_process_arg.data = r->args.data + captures[i];
-            image_process_arg.len = captures[i + 1] - captures[i];
+        for (t = 0; t < matches * 2; t += 2) {
+            image_process_arg.data = r->args.data + captures[t];
+            image_process_arg.len = captures[t + 1] - captures[t];
         }
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "image_process argument: %V", &image_process_arg);
         sl = image_process_arg.len - 16;
@@ -1230,7 +1225,7 @@ transparent:
     }
 
     if (conf->filter == NGX_HTTP_IMAGE_WATERMARK) {
-        int min_w, min_h, tw, th, psx, psy;
+        int min_w, min_h, tw=0, th=0, psx, psy;
 
         min_w=dx;
         min_h=dy;
@@ -1246,7 +1241,7 @@ transparent:
         if ( min_w >= conf->watermark_width_from &&
               min_h >= conf->watermark_height_from){
             char font_path[50];
-            gdImagePtr watermark, watermark_mix, white, white_mix;
+            gdImagePtr watermark=NULL, watermark_mix, white, white_mix;
             ngx_int_t wdx = 0, wdy = 0;
             if (watermark_arg.image.len) {
                 ngx_str_t image_path;
@@ -1320,9 +1315,9 @@ transparent:
                         gdImageColorAllocateAlpha(watermark, 255, 255, 255, gdAlphaTransparent);
                         gdImageColorTransparent(watermark, 0);
                 	    water_color = gdImageColorResolve(watermark, R, G, B);
-                        for (int x=10; x < dx;  x+= (tw + watermark_arg.interval)){
-                            for(int y=NGX_DEFAULT_FONT_HEIGHT*2; y < dy + watermark_arg.interval; y+= (th + watermark_arg.interval)){
-                                gdImageStringFT(watermark, &brect[0], water_color, font_path, watermark_arg.size, angle, x, y, (char *)water_text.data);
+                        for (tx=10; tx < dx;  tx+= (tw + watermark_arg.interval)){
+                            for(ty=NGX_DEFAULT_FONT_HEIGHT*2; ty < dy + watermark_arg.interval; ty+= (th + watermark_arg.interval)){
+                                gdImageStringFT(watermark, &brect[0], water_color, font_path, watermark_arg.size, angle, tx, ty, (char *)water_text.data);
                             }
                         }
                     } else {
@@ -1380,25 +1375,26 @@ transparent:
                     wdy = (int)dst->sy - th - watermark_arg.y;
                 }
             }
-
-            watermark_mix = gdImageCreateTrueColor(watermark->sx, watermark->sy);
-            // WorkAround on transparent source, fill background to white
-            if (ctx->type == NGX_HTTP_IMAGE_GIF || ctx->type == NGX_HTTP_IMAGE_PNG) {
-            	white = gdImageCreateTrueColor(dst->sx, dst->sy);
-            	white_mix = gdImageCreateTrueColor(dst->sx, dst->sy);
-                gdImageFill(white,0,0,gdImageColorAllocate(white,255,255,255));
-            	gdImageCopy(white_mix, white, 0, 0, 0, 0, white_mix->sx, white_mix->sy);
-            	gdImageCopy(white_mix, dst, 0, 0, 0, 0, white_mix->sx, white_mix->sy);
-                gdImageCopyMerge(white, white_mix, 0, 0, 0, 0, white->sx, white->sy, 100);
-            	gdImageDestroy(dst);
-            	gdImageDestroy(white_mix);
-            	dst=white;
+            if (watermark != NULL){
+                watermark_mix = gdImageCreateTrueColor(watermark->sx, watermark->sy);
+                // WorkAround on transparent source, fill background to white
+                if (ctx->type == NGX_HTTP_IMAGE_GIF || ctx->type == NGX_HTTP_IMAGE_PNG) {
+                    white = gdImageCreateTrueColor(dst->sx, dst->sy);
+                    white_mix = gdImageCreateTrueColor(dst->sx, dst->sy);
+                    gdImageFill(white,0,0,gdImageColorAllocate(white,255,255,255));
+                    gdImageCopy(white_mix, white, 0, 0, 0, 0, white_mix->sx, white_mix->sy);
+                    gdImageCopy(white_mix, dst, 0, 0, 0, 0, white_mix->sx, white_mix->sy);
+                    gdImageCopyMerge(white, white_mix, 0, 0, 0, 0, white->sx, white->sy, 100);
+                    gdImageDestroy(dst);
+                    gdImageDestroy(white_mix);
+                    dst=white;
+                }
+                gdImageCopy(watermark_mix, dst, 0, 0, wdx, wdy, watermark->sx, watermark->sy);
+                gdImageCopy(watermark_mix, watermark, 0, 0, 0, 0, watermark->sx, watermark->sy);
+                gdImageCopyMerge(dst, watermark_mix, wdx, wdy, 0, 0, watermark->sx, watermark->sy, watermark_arg.t);
+                gdImageDestroy(watermark_mix);
+                gdImageDestroy(watermark);
             }
-            gdImageCopy(watermark_mix, dst, 0, 0, wdx, wdy, watermark->sx, watermark->sy);
-            gdImageCopy(watermark_mix, watermark, 0, 0, 0, 0, watermark->sx, watermark->sy);
-            gdImageCopyMerge(dst, watermark_mix, wdx, wdy, 0, 0, watermark->sx, watermark->sy, watermark_arg.t);
-            gdImageDestroy(watermark_mix);
-            gdImageDestroy(watermark);
 
         }else{
             if (conf->filter == NGX_HTTP_IMAGE_WATERMARK)

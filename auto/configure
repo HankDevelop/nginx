@@ -86,6 +86,8 @@ have=NGX_CONF_PATH value="\"$NGX_CONF_PATH\"" . auto/define
 have=NGX_PID_PATH value="\"$NGX_PID_PATH\"" . auto/define
 have=NGX_LOCK_PATH value="\"$NGX_LOCK_PATH\"" . auto/define
 have=NGX_ERROR_LOG_PATH value="\"$NGX_ERROR_LOG_PATH\"" . auto/define
+have=NGX_IMAGE_PATH value="\"$NGX_PREFIX/$NGX_IMAGE_PATH\"" . auto/define
+have=NGX_FONT_PATH value="\"$NGX_PREFIX/$NGX_FONT_PATH\"" . auto/define
 
 have=NGX_HTTP_LOG_PATH value="\"$NGX_HTTP_LOG_PATH\"" . auto/define
 have=NGX_HTTP_CLIENT_TEMP_PATH value="\"$NGX_HTTP_CLIENT_TEMP_PATH\""
