@@ -1277,9 +1277,9 @@ transparent:
                 water_text.len = ngx_base64_decoded_length(watermark_arg.text.len);
                 water_text.data = ngx_pcalloc(r->pool, water_text.len + 1);
                 ngx_decode_base64url(&water_text, &watermark_arg.text);
-                ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "text '%V', font_real_path '%V' , corlor '%V'", &water_text, font_real_path, &watermark_arg.color);
-
                 sprintf(font_path, "%s/%s", NGX_FONT_PATH, font_real_path->data);
+
+                ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "text '%V', font_real_path '%s' , corlor '%V'", &water_text, font_path, &watermark_arg.color);
                 FILE *water_font_file = fopen((const char *)font_path, "r");
                 if (water_font_file) {//如果水印字体存在
                 	int water_color, R,G,B;
@@ -1654,6 +1654,7 @@ ngx_http_image_filter_main_create_conf(ngx_conf_t * cf)
     ngx_array_t *key_array;
 
     if ((dir = opendir(NGX_FONT_PATH)) == NULL) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0, "水印字体文件目录：%s 不存在", NGX_FONT_PATH);
         return NGX_CONF_ERROR;
     } else {
         key_array = ngx_array_create(cf->pool, 8, sizeof(ngx_hash_key_t));
@@ -1702,7 +1703,10 @@ ngx_http_image_filter_main_create_conf(ngx_conf_t * cf)
     hash_init.name = "font_hash";
     hash_init.pool = cf->pool;
     hash_init.temp_pool = NULL;
-
+    if(key_array->nelts < 1){
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0, "水印字体加载失败，文件目录：%s", NGX_FONT_PATH);
+        return NGX_CONF_ERROR;
+    }
     ngx_hash_init(&hash_init, key_array->elts, key_array->nelts);
 
     conf->font_hash = font_hash;
