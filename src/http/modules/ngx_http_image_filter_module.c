@@ -605,8 +605,8 @@ ngx_http_image_process(ngx_http_request_t *r)
 
         ngx_memcpy(temp_arg, (char *)image_process_arg.data + 16, sl);
         token = strtok_r(temp_arg, split_char, &pSave);
-
-        while( token != NULL ) {
+        // 控制最大循环次数
+        while( token != NULL && sl ) {
             if(ngx_strcmp(token, "watermark") == 0){
                 conf->filter = NGX_HTTP_IMAGE_WATERMARK;
                 break;
@@ -614,6 +614,7 @@ ngx_http_image_process(ngx_http_request_t *r)
                 conf->filter = NGX_HTTP_IMAGE_RESIZE;
                 break;
             }
+            sl--;
         }
     }
 
@@ -940,7 +941,7 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
             image_process_arg.len = captures[t + 1] - captures[t];
         }
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "image_process argument: %V", &image_process_arg);
-        sl = image_process_arg.len - 16;
+        t = sl = image_process_arg.len - 16;
         char *token, *temp_arg, *pSave = NULL;;
         const char split_char[2] = ",/";
         temp_arg = ngx_pcalloc(r->pool, sl + 1);
@@ -948,7 +949,7 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
         ngx_memcpy(temp_arg, (char *)image_process_arg.data + 16, sl);
         token = strtok_r(temp_arg, split_char, &pSave);
 
-        while( token != NULL ) {
+        while( token != NULL && t ) {
             if (ngx_strcmp(token, "image") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
                 watermark_arg.image.len = ngx_min(ngx_strlen(token), 64);
@@ -1017,6 +1018,7 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
             if (token != NULL) {
                 token = strtok_r(NULL, split_char, &pSave);
             }
+            t--;
         }
     }
 
