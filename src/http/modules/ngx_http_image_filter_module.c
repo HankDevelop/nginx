@@ -36,11 +36,6 @@
 
 
 #define NGX_HTTP_IMAGE_BUFFERED  0x08
-#define NGX_DEFAULT_FONT_HEIGHT  20.0           //字体高度
-
-#ifndef NGX_MAX_FONT_SIZE
-#define NGX_MAX_FONT_SIZE 16
-#endif
 
 typedef struct {
     ngx_str_t image;  // 水印图路径，添加图片水印时的必选参数。内容必须是URL安全base64编码。
@@ -378,9 +373,9 @@ ngx_http_image_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                 }
             }
 
-            return ngx_http_filter_finalize_request(r,
+            /*return ngx_http_filter_finalize_request(r,
                                               &ngx_http_image_filter_module,
-                                              NGX_HTTP_UNSUPPORTED_MEDIA_TYPE);
+                                              NGX_HTTP_UNSUPPORTED_MEDIA_TYPE);*/
         }
 
         /* override content type */
@@ -390,7 +385,7 @@ ngx_http_image_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         r->headers_out.content_type = *ct;
         r->headers_out.content_type_lowcase = NULL;
 
-        if (conf->filter == NGX_HTTP_IMAGE_TEST) {
+        if (conf->filter == NGX_HTTP_IMAGE_TEST || ctx->type == NGX_HTTP_IMAGE_NONE) {
             ctx->phase = NGX_HTTP_IMAGE_PASS;
 
             return ngx_http_image_send(r, ctx, in);
@@ -914,7 +909,7 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
     ngx_pool_cleanup_t            *cln;
     ngx_http_image_filter_conf_t  *conf;
     ngx_http_image_filter_main_conf_t  *main_conf;
-    image_watermark_args watermark_arg = {ngx_null_string, ngx_null_string, 20, ngx_string("d3F5LXplbmhlaQ"), ngx_string("000000"), ngx_string("br"), 10, 10, 100, 0, 0, 100};
+    image_watermark_args watermark_arg = {ngx_null_string, ngx_null_string, 40, ngx_string("d3F5LXplbmhlaQ"), ngx_string("000000"), ngx_string("br"), 10, 10, 100, 0, 0, 100};
 
     src = ngx_http_image_source(r, ctx);
 
@@ -960,7 +955,7 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
                 watermark_arg.text.data = (u_char *)token;
             } else if (ngx_strcmp(token, "size") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
-                watermark_arg.size = ngx_atoi((u_char *)token, ngx_strlen(token));
+                watermark_arg.size = ngx_atoi((u_char *)token, ngx_strnlen((u_char *)token, 3));
             } else if (ngx_strcmp(token, "type") == 0) {
                 token = strtok_r(NULL, split_char, &pSave);
                 watermark_arg.type.len = ngx_min(ngx_strlen(token), 32);
@@ -1287,9 +1282,9 @@ transparent:
                 	int water_color, R,G,B;
                 	char R_str[3],G_str[3],B_str[3];
                 	int brect[8];
-                	sprintf(R_str,"%.*s",2,watermark_arg.color.data+1);
-                	sprintf(G_str,"%.*s",2,watermark_arg.color.data+3);
-                	sprintf(B_str,"%.*s",2,watermark_arg.color.data+5);
+                	sprintf(R_str,"%.*s",2,watermark_arg.color.data);
+                	sprintf(G_str,"%.*s",2,watermark_arg.color.data+2);
+                	sprintf(B_str,"%.*s",2,watermark_arg.color.data+4);
                 	sscanf(R_str,"%x",&R);
                 	sscanf(G_str,"%x",&G);
                 	sscanf(B_str,"%x",&B);
@@ -1314,19 +1309,19 @@ transparent:
 
                     if (watermark_arg.fill) {
                         watermark = gdImageCreate(dst->sx, dst->sy);
-                        gdImageColorAllocateAlpha(watermark, 255, 255, 255, gdAlphaTransparent);
+                        gdImageColorAllocateAlpha(watermark, R, G, B, gdAlphaTransparent);
                         gdImageColorTransparent(watermark, 0);
-                	    water_color = gdImageColorResolve(watermark, R, G, B);
+                        water_color = gdImageColorAllocate(watermark, R, G, B);
                         for (tx=10; tx < dx;  tx+= (tw + watermark_arg.interval)){
-                            for(ty=NGX_DEFAULT_FONT_HEIGHT*2; ty < dy + watermark_arg.interval; ty+= (th + watermark_arg.interval)){
+                            for(ty=ngx_abs(brect[1]-brect[7]); ty < dy + watermark_arg.interval; ty+= (th + watermark_arg.interval)){
                                 gdImageStringFT(watermark, &brect[0], water_color, font_path, watermark_arg.size, angle, tx, ty, (char *)water_text.data);
                             }
                         }
                     } else {
                         watermark = gdImageCreate(tw, th);
-                        gdImageColorAllocateAlpha(watermark, 255, 255, 255, gdAlphaTransparent);
+                        gdImageColorAllocateAlpha(watermark, R, G, B, gdAlphaTransparent);
                         gdImageColorTransparent(watermark, 0);
-                        water_color = gdImageColorResolve(watermark, R, G, B);
+                        water_color = gdImageColorAllocate(watermark, R, G, B);
                         gdImageStringFT(watermark, &brect[0], water_color, font_path, watermark_arg.size, angle, psx, psy, (char *)water_text.data);
                     }
                     fclose(water_font_file);
