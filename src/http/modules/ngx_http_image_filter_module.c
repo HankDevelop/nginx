@@ -1312,8 +1312,8 @@ transparent:
                         gdImageColorAllocateAlpha(watermark, R, G, B, gdAlphaTransparent);
                         gdImageColorTransparent(watermark, 0);
                         water_color = gdImageColorAllocate(watermark, R, G, B);
-                        for (tx=10; tx < dx;  tx+= (tw + watermark_arg.interval)){
-                            for(ty=ngx_abs(brect[1]-brect[7]); ty < dy + watermark_arg.interval; ty+= (th + watermark_arg.interval)){
+                        for (tx=0; tx < dx + (tw + watermark_arg.interval);  tx+= (tw + watermark_arg.interval)){
+                            for(ty=0; ty < dy + (th + watermark_arg.interval); ty+= (th + watermark_arg.interval)){
                                 gdImageStringFT(watermark, &brect[0], water_color, font_path, watermark_arg.size, angle, tx, ty, (char *)water_text.data);
                             }
                         }
