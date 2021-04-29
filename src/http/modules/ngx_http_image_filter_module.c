@@ -339,6 +339,8 @@ ngx_http_image_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_chain_t                    out;
     ngx_http_image_filter_ctx_t   *ctx;
     ngx_http_image_filter_conf_t  *conf;
+    int                            matches;
+    ngx_http_image_filter_main_conf_t  *main_conf;
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "image filter");
 
@@ -347,6 +349,8 @@ ngx_http_image_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_image_filter_module);
+    main_conf = ngx_http_get_module_main_conf(r, ngx_http_image_filter_module);
+    int captures [(1 + main_conf->image_process_captures)* 3];
 
     if (ctx == NULL) {
         return ngx_http_next_body_filter(r, in);
@@ -359,8 +363,10 @@ ngx_http_image_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         ctx->type = ngx_http_image_test(r, in);
 
         conf = ngx_http_get_module_loc_conf(r, ngx_http_image_filter_module);
+        matches = ngx_regex_exec(main_conf->image_process_re, &r->args, captures, (1 + main_conf->image_process_captures) * 3);
 
-        if (ctx->type == NGX_HTTP_IMAGE_NONE) {
+
+        if (ctx->type == NGX_HTTP_IMAGE_NONE || matches < 1) {
 
             if (conf->filter == NGX_HTTP_IMAGE_SIZE) {
                 out.buf = ngx_http_image_json(r, NULL);
@@ -372,7 +378,8 @@ ngx_http_image_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                     return ngx_http_image_send(r, ctx, &out);
                 }
             }
-
+            // 未解析到参数x-image-process或者图片类型不支持，则忽略处理流程
+            ctx->type = NGX_HTTP_IMAGE_NONE;
             /*return ngx_http_filter_finalize_request(r,
                                               &ngx_http_image_filter_module,
                                               NGX_HTTP_UNSUPPORTED_MEDIA_TYPE);*/
@@ -1470,6 +1477,7 @@ ngx_http_image_source(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
         break;
 
     case NGX_HTTP_IMAGE_PNG:
+        // FIXME 该方法读取png文件后，alpha通道数据丢失
         img = gdImageCreateFromPngPtr(ctx->length, ctx->image);
         failed = "gdImageCreateFromPngPtr() failed";
         break;
